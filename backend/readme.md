@@ -85,8 +85,8 @@ Make sure you have the following installed:
 Here is a brief overview of the available routes and their functionalities:
 
 #### **User Routes:**
-- **`POST /api/auth/signup`**: Signup a new user.
-- **`POST /api/auth/login`**: Login a user.
+- **`POST /api/auth/user/signup`**: Signup a new user.
+- **`POST /api/auth/user/login`**: Login a user.
 
 #### **Driver Routes:**
 - **`POST /api/auth/driver/signup`**: Signup a new driver.

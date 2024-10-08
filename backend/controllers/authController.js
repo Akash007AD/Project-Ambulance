@@ -1,9 +1,9 @@
-// backend/controllers/authController.js
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Driver = require('../models/Driver');
 const Hospital = require('../models/Hospital');
+const upload = require('../config/upload');  // Import multer configuration
 
 // Utility function to generate JWT
 const generateToken = (id) => {
@@ -12,119 +12,173 @@ const generateToken = (id) => {
 
 // 1. User Signup
 const signupUser = async (req, res) => {
-    const { name, phone, password } = req.body;
+    const { name, phoneNumber, password } = req.body;
+
+    // Validate required fields
+    if (!name || !phoneNumber || !password) {
+        return res.status(400).json({ message: 'Name, phone number, and password are required' });
+    }
+
+    // Handle location parsing with error catching
+    let location;
     try {
-        // Check if user already exists
-        const userExists = await User.findOne({ phone });
+        location = req.body.location ? JSON.parse(req.body.location) : { type: 'Point', coordinates: [0, 0] };
+    } catch (error) {
+        return res.status(400).json({ message: 'Invalid location data' });
+    }
+
+    try {
+        const userExists = await User.findOne({ phoneNumber });
         if (userExists) {
             return res.status(400).json({ message: 'User already exists' });
         }
 
-        // Hash password
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
-        // Create new user
         const user = await User.create({
             name,
-            phone,
+            phoneNumber,
             password: hashedPassword,
+            location,
         });
 
         res.status(201).json({
             _id: user._id,
             name: user.name,
-            phone: user.phone,
+            phoneNumber: user.phoneNumber,
+            location: user.location,
             token: generateToken(user._id),
         });
     } catch (error) {
-        res.status(500).json({ message: 'Server error' });
+        console.error(`Error during user signup: ${error.message}`, error.stack);
+        res.status(500).json({ message: 'Server error during user signup' });
     }
 };
 
 // 2. User Login
 const loginUser = async (req, res) => {
-    const { phone, password } = req.body;
+    const { phoneNumber, password } = req.body;
+
+    // Handle location parsing
+    let location;
     try {
-        // Check if user exists
-        const user = await User.findOne({ phone });
+        location = req.body.location ? JSON.parse(req.body.location) : null;
+    } catch (error) {
+        return res.status(400).json({ message: 'Invalid location data' });
+    }
+
+    try {
+        const user = await User.findOne({ phoneNumber });
         if (user && (await bcrypt.compare(password, user.password))) {
+            if (location) {
+                user.location = location;
+                await user.save();
+            }
+
             res.json({
                 _id: user._id,
                 name: user.name,
-                phone: user.phone,
+                phoneNumber: user.phoneNumber,
+                location: user.location,
                 token: generateToken(user._id),
             });
         } else {
             res.status(400).json({ message: 'Invalid credentials' });
         }
     } catch (error) {
-        res.status(500).json({ message: 'Server error' });
+        console.error(`Error during user login: ${error.message}`, error.stack);
+        res.status(500).json({ message: 'Server error during user login' });
     }
 };
 
 // 3. Driver Signup
-const signupDriver = async (req, res) => {
-    const { name, phone, password, vehicleNumber, drivingLicense, licenseImage } = req.body;
-    try {
-        // Check if driver already exists
-        const driverExists = await Driver.findOne({ phone });
-        if (driverExists) {
-            return res.status(400).json({ message: 'Driver already exists' });
+const signupDriver = (req, res) => {
+    upload.single('licenseImage')(req, res, async (err) => {  // Use the correct file field name here
+        if (err) {
+            return res.status(400).json({ message: err.message });
         }
 
-        // Hash password
-        const salt = await bcrypt.genSalt(10);
-        const hashedPassword = await bcrypt.hash(password, salt);
+        const { name, phoneNumber, password, vehicleNumber, drivingLicense } = req.body;
+        const location = req.body.location ? JSON.parse(req.body.location) : { type: 'Point', coordinates: [0, 0] };
 
-        // Create new driver
-        const driver = await Driver.create({
-            name,
-            phone,
-            password: hashedPassword,
-            vehicleNumber,
-            drivingLicense,
-            licenseImage,
-            isAvailable: false,
-        });
+        try {
+            const driverExists = await Driver.findOne({ phoneNumber });
+            if (driverExists) {
+                return res.status(400).json({ message: 'Driver already exists' });
+            }
 
-        res.status(201).json({
-            _id: driver._id,
-            name: driver.name,
-            phone: driver.phone,
-            vehicleNumber: driver.vehicleNumber,
-            token: generateToken(driver._id),
-        });
-    } catch (error) {
-        res.status(500).json({ message: 'Server error' });
-    }
+            const salt = await bcrypt.genSalt(10);
+            const hashedPassword = await bcrypt.hash(password, salt);
+
+            const newDriver = new Driver({
+                name,
+                phoneNumber,
+                password: hashedPassword,
+                vehicleNumber,
+                drivingLicense,
+                licenseImage: req.file ? req.file.path : null,  // Store uploaded file path
+                location,
+            });
+
+            await newDriver.save();
+
+            res.status(201).json({
+                _id: newDriver._id,
+                name: newDriver.name,
+                phoneNumber: newDriver.phoneNumber,
+                vehicleNumber: newDriver.vehicleNumber,
+                drivingLicense: newDriver.drivingLicense,
+                licenseImage: newDriver.licenseImage,
+                location: newDriver.location,
+                token: generateToken(newDriver._id),
+            });
+        } catch (error) {
+            res.status(500).json({ message: 'Server error during driver signup' });
+            console.error(`Error during driver signup: ${error.message}`);
+        }
+    });
 };
+
 
 // 4. Driver Login
 const loginDriver = async (req, res) => {
-    const { phone, password } = req.body;
+    const { phoneNumber, password } = req.body;
+
     try {
-        // Check if driver exists
-        const driver = await Driver.findOne({ phone });
-        if (driver && (await bcrypt.compare(password, driver.password))) {
-            res.json({
-                _id: driver._id,
-                name: driver.name,
-                phone: driver.phone,
-                vehicleNumber: driver.vehicleNumber,
-                token: generateToken(driver._id),
-            });
-        } else {
-            res.status(400).json({ message: 'Invalid credentials' });
+        // Check if the driver exists
+        const driver = await Driver.findOne({ phoneNumber });
+
+        if (!driver) {
+            return res.status(401).json({ message: 'Invalid phone number or password' });
         }
+
+        // Compare passwords
+        const isPasswordMatch = await bcrypt.compare(password, driver.password);
+
+        if (!isPasswordMatch) {
+            return res.status(401).json({ message: 'Invalid phone number or password' });
+        }
+
+        // If successful, return the driver's details along with the token
+        res.json({
+            _id: driver._id,
+            name: driver.name,
+            phoneNumber: driver.phoneNumber,
+            vehicleNumber: driver.vehicleNumber,
+            drivingLicense: driver.drivingLicense,
+            token: generateToken(driver._id),
+        });
     } catch (error) {
-        res.status(500).json({ message: 'Server error' });
+        console.error(`Error during driver login: ${error.message}`);
+        res.status(500).json({ message: 'Server error during driver login' });
     }
 };
 
 // 5. Hospital Signup
 const signupHospital = async (req, res) => {
-    const { name, registrationNumber, password } = req.body;
+    const { name, registrationNumber, password, bedAvailability } = req.body;
+
     try {
         // Check if hospital already exists
         const hospitalExists = await Hospital.findOne({ registrationNumber });
@@ -141,22 +195,26 @@ const signupHospital = async (req, res) => {
             name,
             registrationNumber,
             password: hashedPassword,
+            bedAvailability,
         });
 
         res.status(201).json({
             _id: hospital._id,
             name: hospital.name,
             registrationNumber: hospital.registrationNumber,
+            bedAvailability: hospital.bedAvailability,
             token: generateToken(hospital._id),
         });
     } catch (error) {
-        res.status(500).json({ message: 'Server error' });
+        console.error(`Error during hospital signup: ${error.message}`, error.stack);
+        res.status(500).json({ message: 'Server error during hospital signup' });
     }
 };
 
 // 6. Hospital Login
 const loginHospital = async (req, res) => {
     const { registrationNumber, password } = req.body;
+
     try {
         // Check if hospital exists
         const hospital = await Hospital.findOne({ registrationNumber });
@@ -165,13 +223,15 @@ const loginHospital = async (req, res) => {
                 _id: hospital._id,
                 name: hospital.name,
                 registrationNumber: hospital.registrationNumber,
+                bedAvailability: hospital.bedAvailability,
                 token: generateToken(hospital._id),
             });
         } else {
             res.status(400).json({ message: 'Invalid credentials' });
         }
     } catch (error) {
-        res.status(500).json({ message: 'Server error' });
+        console.error(`Error during hospital login: ${error.message}`, error.stack);
+        res.status(500).json({ message: 'Server error during hospital login' });
     }
 };
 

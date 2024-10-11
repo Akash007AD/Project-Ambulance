@@ -12,19 +12,16 @@ const generateToken = (id) => {
 
 // 1. User Signup
 const signupUser = async (req, res) => {
-    const { name, phoneNumber, password } = req.body;
+    const { name, phoneNumber, password, location } = req.body;
 
     // Validate required fields
     if (!name || !phoneNumber || !password) {
         return res.status(400).json({ message: 'Name, phone number, and password are required' });
     }
 
-    // Handle location parsing with error catching
-    let location;
-    try {
-        location = req.body.location ? JSON.parse(req.body.location) : { type: 'Point', coordinates: [0, 0] };
-    } catch (error) {
-        return res.status(400).json({ message: 'Invalid location data' });
+    // Validate location coordinates if provided
+    if (location && (!location.coordinates || location.coordinates.length !== 2)) {
+        return res.status(400).json({ message: 'Invalid location data. Coordinates should be an array of [longitude, latitude].' });
     }
 
     try {
@@ -40,7 +37,7 @@ const signupUser = async (req, res) => {
             name,
             phoneNumber,
             password: hashedPassword,
-            location,
+            location: location || { type: 'Point', coordinates: [0, 0] }, // Set default location if not provided
         });
 
         res.status(201).json({
@@ -55,22 +52,19 @@ const signupUser = async (req, res) => {
         res.status(500).json({ message: 'Server error during user signup' });
     }
 };
-
-// 2. User Login
+//2. Login User
 const loginUser = async (req, res) => {
-    const { phoneNumber, password } = req.body;
+    const { phoneNumber, password, location } = req.body;
 
-    // Handle location parsing
-    let location;
-    try {
-        location = req.body.location ? JSON.parse(req.body.location) : null;
-    } catch (error) {
-        return res.status(400).json({ message: 'Invalid location data' });
+    // Validate location coordinates if provided
+    if (location && (!location.coordinates || location.coordinates.length !== 2)) {
+        return res.status(400).json({ message: 'Invalid location data. Coordinates should be an array of [longitude, latitude].' });
     }
 
     try {
         const user = await User.findOne({ phoneNumber });
         if (user && (await bcrypt.compare(password, user.password))) {
+            // Update user location if provided
             if (location) {
                 user.location = location;
                 await user.save();

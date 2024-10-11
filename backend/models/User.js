@@ -1,4 +1,3 @@
-// backend/models/User.js
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
@@ -27,5 +26,8 @@ const userSchema = new mongoose.Schema({
         }
     }
 }, { timestamps: true });
+
+// Create 2dsphere index for geospatial queries
+userSchema.index({ location: '2dsphere' });
 
 module.exports = mongoose.model('User', userSchema);

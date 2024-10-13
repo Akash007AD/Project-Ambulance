@@ -1,5 +1,3 @@
-// backend/routes/authRoutes.js
-
 const express = require('express');
 const {
     signupUser,
@@ -8,6 +6,8 @@ const {
     loginDriver,
     signupHospital,
     loginHospital,
+    getDriverDetails,
+    getDriverDashboard // Import the new controller function
 } = require('../controllers/authController');
 const upload = require('../config/upload'); // Import the upload middleware for handling file uploads
 
@@ -25,7 +25,12 @@ router.post('/user/login', loginUser);
 router.post('/driver/signup', upload.single('licenseImage'), signupDriver);
 
 // Driver Login
-router.post('/driver/login', loginDriver);
+// Example route definition
+router.post('/driver/login',loginDriver);
+router.get('/driver/dashboard/:id',getDriverDashboard);
+
+// Get Driver Details
+router.get('/driver/:phoneNumber', getDriverDetails);
 
 // ---------------------- Hospital Routes ----------------------
 // Hospital Signup

@@ -1,47 +1,29 @@
-// backend/models/Driver.js
 const mongoose = require('mongoose');
 
 const driverSchema = new mongoose.Schema({
-    name: {
-        type: String,
-        required: true
-    },
-    phoneNumber: {
-        type: String,
-        required: true,
-        unique: true
-    },
-    password: {
-        type: String,
-        required: true
-    },
-    vehicleNumber: {
-        type: String,
-        required: true
-    },
-    drivingLicense: {
-        type: String,
-        required: true
-    },
-    licenseImage: {
-        type: String,
-        required: true
-    },
-    available: {
-        type: Boolean,
-        default: true
-    },
+    name: { type: String, required: true },
+    phoneNumber: { type: String, required: true, unique: true },
+    password: { type: String, required: true },
+    vehicleNumber: { type: String, required: true },
+    drivingLicense: { type: String, required: true },
+    licenseImage: { type: String, default: null },
+    available: { type: Boolean, default: true },
     location: {
         type: {
-            type: String,
-            enum: ['Point'],
-            default: 'Point'
+            type: String, // "Point"
+            enum: ['Point'], // 'location.type' must be 'Point'
+            required: true,
         },
         coordinates: {
-            type: [Number],
-            default: [0, 0]
-        }
-    }
-}, { timestamps: true });
+            type: [Number], // [longitude, latitude]
+            required: true,
+        },
+    },
+    createdAt: { type: Date, default: Date.now },
+    updatedAt: { type: Date, default: Date.now },
+});
 
-module.exports = mongoose.model('Driver', driverSchema);
+driverSchema.index({ location: '2dsphere' }); // Create a 2dsphere index for geospatial queries
+
+const Driver = mongoose.model('Driver', driverSchema);
+module.exports = Driver;
